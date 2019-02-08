@@ -80,7 +80,7 @@ if __name__ == '__main__':
                 'state_dict': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
             }
-            #torch.save(states, save_model_filename)
+            torch.save(states, save_model_filename)
 
         elapsed_time = time.time() - start
         print("{0.days:02}日{0.hours:02}時間{0.minutes:02}分{0.seconds:02}秒".format(relativedelta(seconds=int(elapsed_time))))

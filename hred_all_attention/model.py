@@ -31,6 +31,7 @@ class Hierachical(nn.Module):
             word_hx_outputs.append(hx)
             g_atten_hx_outputs.append(word_outputs)
             g_atten_hx_features.append(word_features)
+        exit()
 
         word_hx_outputs = torch.stack(word_hx_outputs, 0)
         g_atten_hx_outputs = torch.stack(g_atten_hx_outputs, 0) # max_s - max_w - b - hidden
@@ -48,31 +49,30 @@ class Hierachical(nn.Module):
 
         w_hx = s_hx
         coverage_vector = torch.zeros(sentence_mask.size()).cuda(current_gpu)
-        if train:
-            loss = 0
-            for summaries_sentence in summaries_sentences:
-                summaries_sentence = summaries_sentence.t()
-                for words_before, words_after in zip(summaries_sentence[:-1], summaries_sentence[1:]):
-                    w_hx = self.w_decoder(words_before, w_hx,
-                        g_atten_hx_outputs, g_atten_hx_features, word_mask)
+        loss = 0
+        for summaries_sentence in summaries_sentences:
+            summaries_sentence = summaries_sentence.t()
+            for words_before, words_after in zip(summaries_sentence[:-1], summaries_sentence[1:]):
+                w_hx = self.w_decoder(words_before, w_hx,
+                    g_atten_hx_outputs, g_atten_hx_features, word_mask)
 
-                    loss += F.cross_entropy(
-                        self.w_decoder.linear(w_hx), words_after, ignore_index=0)
+                loss += F.cross_entropy(
+                    self.w_decoder.linear(w_hx), words_after, ignore_index=0)
 
-                final_dist, s_hx, align_weight, next_coverage_vector = self.s_decoder(w_hx, s_hx,
-                    sentence_outputs, sentence_features, coverage_vector, sentence_mask)
+            final_dist, s_hx, align_weight, next_coverage_vector = self.s_decoder(w_hx, s_hx,
+                sentence_outputs, sentence_features, coverage_vector, sentence_mask)
 
-                if self.opts["coverage_vector"]:
-                    align_weight = align_weight.squeeze()
-                    coverage_vector = coverage_vector.squeeze()
-                    step_coverage_loss = torch.sum(torch.min(align_weight, coverage_vector), 0)
-                    step_coverage_loss = torch.mean(step_coverage_loss)
-                    cov_loss_wt = 1
-                    loss += (cov_loss_wt * step_coverage_loss)
-                    coverage_vector = next_coverage_vector
-                s_hx = final_dist
-                w_hx = final_dist
-            return loss
+            if self.opts["coverage_vector"]:
+                align_weight = align_weight.squeeze()
+                coverage_vector = coverage_vector.squeeze()
+                step_coverage_loss = torch.sum(torch.min(align_weight, coverage_vector), 0)
+                step_coverage_loss = torch.mean(step_coverage_loss)
+                cov_loss_wt = 1
+                loss += (cov_loss_wt * step_coverage_loss)
+                coverage_vector = next_coverage_vector
+            s_hx = final_dist
+            w_hx = final_dist
+        return loss
 
     def generate(self, article_docs=None):
         articles_sentences = article_docs

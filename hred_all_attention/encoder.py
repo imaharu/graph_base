@@ -18,6 +18,8 @@ class WordEncoder(nn.Module):
         current_gpu = torch.cuda.current_device()
         except_flag = False
         # もし,全て０の時
+        print(input_lengths)
+        print(input_lengths.max())
         if input_lengths.max().item() == 0:
             p_w_hx = torch.zeros((b, hidden_size)).cuda(current_gpu)
             p_words_hx = torch.zeros((max_s_len, b, hidden_size)).cuda(current_gpu)
