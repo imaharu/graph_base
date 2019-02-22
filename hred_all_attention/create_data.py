@@ -25,7 +25,7 @@ source_dict = preprocess.getVocab(vocab_path)
 target_dict = preprocess.getVocab(vocab_path)
 
 pardir = os.environ["plain_data"]
-debug = False
+debug = True
 if args.mode == "train":
     train_src = '{}/{}'.format(pardir, "discard_a_train.txt")
     train_article_file = "data/train_article.pt"
@@ -33,11 +33,11 @@ if args.mode == "train":
     train_summary_file = "data/train_summary.pt"
     train_tgt = '{}/{}'.format(pardir, "discard_s_train.txt")
     preprocess.save(train_tgt , 1, target_dict, train_summary_file, debug)
-if args.mode == "val":
+elif args.mode == "val":
     val_src = '{}/{}'.format(pardir, "discard/fix_val_article.txt")
     val_article_file = "data/val_article.pt"
     preprocess.save(val_src , 0, source_dict, val_article_file, debug)
-if args.mode == "test":
+elif args.mode == "test":
     test_src = '{}/{}'.format(pardir, "test.txt.src")
     print("source data path: {} ".format(test_src))
     test_article_file = "data/test_article.pt"

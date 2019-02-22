@@ -45,6 +45,8 @@ class Preprocess():
         writes = open(save_file, 'w')
         with open(data_path) as data:
             for count , doc in enumerate(data):
+                if count >= 1000 and debug:
+                    break
                 doc = self.ConvertTensor(doc, mode)
                 for sentence in doc:
                     if sentence == doc[-1]:
