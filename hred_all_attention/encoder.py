@@ -13,53 +13,28 @@ class WordEncoder(nn.Module):
         self.W_whs = nn.Linear(hidden_size, hidden_size)
 
     def forward(self, sentences, max_s_len):
-        b = sentences.size(0)
-        input_lengths = sentences.ne(0).sum(-1)
         current_gpu = torch.cuda.current_device()
-        except_flag = False
-        # もし,全て０の時
-        print(input_lengths)
-        print(input_lengths.max())
-        if input_lengths.max().item() == 0:
-            p_w_hx = torch.zeros((b, hidden_size)).cuda(current_gpu)
-            p_words_hx = torch.zeros((max_s_len, b, hidden_size)).cuda(current_gpu)
-            return p_words_hx, p_words_hx, p_w_hx
-
-        sorted_lengths, indices = torch.sort(input_lengths, descending=True)
-        sentences = sentences[indices]
-        masked_select = sorted_lengths.masked_select(sorted_lengths.ne(0))
-
-        # if all 0 sentence is appeared
-        if not torch.equal(sorted_lengths, masked_select):
-            s_b = b
-            b = masked_select.size(0)
-            sentences = sentences.narrow(0, 0, b)
-            sorted_lengths = masked_select
-            except_flag = True
-
-        embed = self.embed(sentences)
-        sequence = rnn.pack_padded_sequence(embed, sorted_lengths, batch_first=True)
-        self.gru.flatten_parameters()
-        word_outputs, w_hx = self.gru(sequence)
-        word_outputs, _ = rnn.pad_packed_sequence(
-            word_outputs
-        )
-
+        b = sentences.size(0)
+        lengths = sentences.ne(0).sum(-1)
+        lengths_sort, idx_sort = torch.sort(lengths, dim=0, descending=True)
+        _, idx_unsort = torch.sort(idx_sort, dim=0)
+        x_sort = sentences.index_select(0, idx_sort)
+        for i, _ in enumerate(lengths_sort):
+            if lengths_sort[i] == 0:
+                lengths_sort[i] = 1
+        embed = self.embed(x_sort)
+        x_pack = torch.nn.utils.rnn.pack_padded_sequence(embed, lengths_sort, batch_first=True)
+        o_pack, hx = self.gru(x_pack)
+        o, _ = torch.nn.utils.rnn.pad_packed_sequence(o_pack)
+        o_unsort = o.index_select(1, idx_unsort)
+        hx = hx.transpose(0,1).index_select(0, idx_unsort)
         if self.opts["bidirectional"]:
-            word_outputs = word_outputs[:, :, :hidden_size] + word_outputs[:, :, hidden_size:]
-            w_hx = w_hx.view(-1, 2 , b, hidden_size).sum(1)
-        w_hx = w_hx.view(b , -1)
-        if except_flag:
-            outputs_zeros = torch.zeros((word_outputs.size(0) ,s_b - b, hidden_size)).cuda(current_gpu)
-            word_outputs = torch.cat((word_outputs, outputs_zeros), 1)
-            zeros = torch.zeros((s_b - b, hidden_size)).cuda(current_gpu)
-            w_hx = torch.cat((w_hx, zeros), 0)
-        inverse_indices = indices.sort()[1] # Inverse permutation
-        word_outputs = word_outputs[:,inverse_indices,:]
-        w_hx = w_hx[inverse_indices]
+            word_outputs = o_unsort[:, :, :hidden_size] + o_unsort[:, :, hidden_size:]
+            hx = hx.view(-1, 2 , b, hidden_size).sum(1)
+        hx = hx.view(b , -1)
         word_outputs = F.pad(word_outputs, (0, 0, 0, 0, 0, max_s_len - word_outputs.size(0) ), "constant", 0)
         word_features = self.W_whs(word_outputs)
-        return word_outputs, word_features, w_hx
+        return word_outputs, word_features, hx
 
 class SentenceEncoder(nn.Module):
     def __init__(self, opts):

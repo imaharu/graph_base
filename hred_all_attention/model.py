@@ -23,29 +23,29 @@ class Hierachical(nn.Module):
         current_gpu = torch.cuda.current_device()
         b = articles_sentences.size(1)
         max_s_len = articles_sentences.size(2)
-        g_atten_hx_outputs = []
-        g_atten_hx_features = []
+        g_attn_hx_outputs = []
+        g_attn_hx_features = []
 
         for sentences in articles_sentences:
             word_outputs, word_features, hx = self.w_encoder(sentences, max_s_len)
             word_hx_outputs.append(hx)
-            g_atten_hx_outputs.append(word_outputs)
-            g_atten_hx_features.append(word_features)
-        exit()
+            g_attn_hx_outputs.append(word_outputs)
+            g_attn_hx_features.append(word_features)
 
         word_hx_outputs = torch.stack(word_hx_outputs, 0)
-        g_atten_hx_outputs = torch.stack(g_atten_hx_outputs, 0) # max_s - max_w - b - hidden
-        g_atten_hx_features = torch.stack(g_atten_hx_features, 0)
 
-        g_atten_hx_outputs = g_atten_hx_outputs.view(-1, b, hidden_size) # max_s x max_w - b - hidden
-        g_atten_hx_features = g_atten_hx_features.view(-1, b, hidden_size)
+        g_attn_hx_outputs = torch.stack(g_attn_hx_outputs, 0) # max_s - max_w - b - hidden
+        g_attn_hx_features = torch.stack(g_attn_hx_features, 0)
+
+        g_attn_hx_outputs = g_attn_hx_outputs.view(-1, b, hidden_size) # max_s x max_w - b - hidden
+        g_attn_hx_features = g_attn_hx_features.view(-1, b, hidden_size)
 
         sentence_outputs, sentence_features, s_hx = self.s_encoder(word_hx_outputs)
 
         sentence_mask = [ torch.tensor([ [ words[0].item() ] for words in sentences ])
                 for sentences in articles_sentences ]
         sentence_mask = torch.stack(sentence_mask, 0).gt(0).float().cuda(current_gpu)
-        word_mask = g_atten_hx_outputs[:,:,:1].ne(0).float()
+        word_mask = g_attn_hx_outputs[:,:,:1].ne(0).float()
 
         w_hx = s_hx
         coverage_vector = torch.zeros(sentence_mask.size()).cuda(current_gpu)
@@ -54,7 +54,7 @@ class Hierachical(nn.Module):
             summaries_sentence = summaries_sentence.t()
             for words_before, words_after in zip(summaries_sentence[:-1], summaries_sentence[1:]):
                 w_hx = self.w_decoder(words_before, w_hx,
-                    g_atten_hx_outputs, g_atten_hx_features, word_mask)
+                    g_attn_hx_outputs, g_attn_hx_features, word_mask)
 
                 loss += F.cross_entropy(
                     self.w_decoder.linear(w_hx), words_after, ignore_index=0)
